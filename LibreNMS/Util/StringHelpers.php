@@ -107,6 +107,7 @@ class StringHelpers
             return $string;
         }
 
+        $original = $string;
         $string = str_replace(chr(218), "\n", $string);
 
         if (! function_exists('iconv')) {
@@ -122,14 +123,21 @@ class StringHelpers
         // Detect GB multi-byte pattern: strict GB2312 range (0xA1-0xF7, 0xA1-0xFE)
         // or GBK extended range (0x81-0xA0, 0x40-0x7E/0x80-0xFE). Count occurrences to avoid
         // false positives from Western encodings like CP850 which may have single high-byte pairs.
-        $gbPatternCount = preg_match_all('/[\xA1-\xF7][\xA1-\xFE]|[\x81-\xA0][\x40-\x7E\x80-\xFE]/s', $string);
-        $hasGbPattern = $gbPatternCount >= 2;
+        // 0xDA is also a valid GB trail byte (e.g. 端口 is B6 CB BF DA), so the newline replacement
+        // above can break the pattern. Also check the original bytes, but only when they hold two
+        // GB characters in a row to avoid mistaking "é<newline>" in Western text for GB.
+        $candidates = [$string];
+        if ($original !== $string && preg_match('/(?:[\xA1-\xF7][\xA1-\xFE]|[\x81-\xA0][\x40-\x7E\x80-\xFE]){2}/s', $original)) {
+            $candidates[] = $original;
+        }
 
-        if ($hasGbPattern) {
-            // GB pattern detected, prioritize GB family encodings
-            foreach (['GB18030', 'GBK', 'GB2312'] as $encoding) {
-                if (($converted = @iconv($encoding, 'UTF-8', $string)) !== false) {
-                    return (string) $converted;
+        foreach ($candidates as $candidate) {
+            if (preg_match_all('/[\xA1-\xF7][\xA1-\xFE]|[\x81-\xA0][\x40-\x7E\x80-\xFE]/s', $candidate) >= 2) {
+                // GB pattern detected, prioritize GB family encodings
+                foreach (['GB18030', 'GBK', 'GB2312'] as $encoding) {
+                    if (($converted = @iconv($encoding, 'UTF-8', $candidate)) !== false) {
+                        return (string) $converted;
+                    }
                 }
             }
         }

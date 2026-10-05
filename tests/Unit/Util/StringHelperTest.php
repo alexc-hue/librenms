@@ -57,6 +57,8 @@ final class StringHelperTest extends TestCase
         // Huawei SmartAX MA5608T returns GBK-encoded "风机盒" (fan box) in
         // ENTITY-MIB::entPhysicalDescr, which crashed discovery. See #20361
         $this->assertEquals('MA5610&MA5616风机盒', StringHelpers::inferEncoding("MA5610&MA5616\xB7\xE7\xBB\xFA\xBA\xD0"));
+        // 0xDA is a GB trail byte as well as the newline marker, 端口 ends in it
+        $this->assertEquals('端口', StringHelpers::inferEncoding("\xB6\xCB\xBF\xDA"));
 
         config(['app.charset' => 'Shift_JIS']);
         $this->assertEquals('コンサート', StringHelpers::inferEncoding(base64_decode('g1KDk4NUgVuDZw==')));
